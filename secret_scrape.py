@@ -5,6 +5,7 @@
 # in the meantime can use this
 # SELECT DISTINCT Title, Company FROM jobs WHERE Date BETWEEN datetime('now', '-3 days') AND datetime('now', 'localtime');
 
+# -*- coding: utf-8 -*-
 import csv
 import datetime
 import urllib.request
@@ -27,12 +28,12 @@ def update_db():
         soup = scrape_secret()
         jobs = clean_jobs(soup)
         result = organise(jobs)
-        final = data_cleanser(result)
-        export(final)
+        excel_data = data_cleanser(result)
+        export_to_excel(excel_data)
 
         # after exporting to csv (just in case) we delete the title row and convert nested lists to tuples
-        del final[0]
-        new_result = [tuple(l) for l in final]
+        del excel_data[0]
+        new_result = [tuple(l) for l in excel_data]
         # only necessary once
         # c.execute('''CREATE TABLE jobs (Title, Company, Location, Type, Date Posted)''')
 
@@ -64,13 +65,13 @@ def scrape_secret():
 def clean_jobs(soup):
     # jobs are in 'spans'
     all_spans = soup.find_all("span")
-    jobs = []
-    for span in all_spans:
-        jobs.append(span.get_text().strip())
+    jobs = [span.get_text().strip() for span in all_spans]
     # remove extraneous elements
-    jobs.remove('')
-    jobs.remove('Subscribe to our EVENTS Newsletter')
-    jobs.remove('Join our facebook GROUP')
+    rem_list = ['',
+                'Subscribe to our EVENTS Newsletter',
+                'Join our facebook GROUP']
+    for removal_string in rem_list:
+        jobs.remove(removal_string)
     jobs = remove_value_from_list(jobs, '')
     return remove_value_from_list(jobs, 'new')
 
@@ -100,7 +101,7 @@ def data_cleanser(result):
     return result
 
 
-def export(result):
+def export_to_excel(result):
     csvfile = "secret_today" + datetime.datetime.today().strftime('%m-%d') + ".csv"
     with open(csvfile, "w") as output:
         writer = csv.writer(output, lineterminator='\n')
