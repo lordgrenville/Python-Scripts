@@ -2,6 +2,7 @@
 # problem - janglo has unpredictable size, how do you differentiate jobs?
 # cronjob can be done in windows with task scheduler
 # TODO don't add duplicate records! namely, add a primary key
+# TODO lists are fubared after switch to lxml - add algorithm to remove consecutive duplicates
 # in the meantime can use this
 # SELECT DISTINCT Title, Company FROM jobs WHERE Date BETWEEN datetime('now', '-3 days') AND datetime('now', 'localtime');
 
@@ -10,8 +11,7 @@ import csv
 import datetime
 import urllib.request
 import sqlite3
-from sqlite3 import Error
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
 from dateutil import parser
 
 """
@@ -20,10 +20,7 @@ Scrapes Secret Tel Aviv jobs board, adds new jobs into a database
 
 
 def update_db():
-    try:
-        conn = sqlite3.connect('jobs.db')
-        c = conn.cursor()
-
+    with sqlite3.connect('jobs.db') as con:
         # call the scraping functions
         soup = scrape_secret()
         jobs = clean_jobs(soup)
@@ -35,14 +32,12 @@ def update_db():
         del excel_data[0]
         new_result = [tuple(l) for l in excel_data]
         # only necessary once
-        # c.execute('''CREATE TABLE jobs (Title, Company, Location, Type, Date Posted)''')
+        # cursor.execute('''CREATE TABLE jobs (Title, Company, Location, Type, Date Posted)''')
 
-        c.executemany("INSERT INTO jobs VALUES (?,?,?,?,?)", new_result)
-        conn.commit()
-        conn.close()
-
-    except Error as e:
-        print(e)
+        con.executemany("""
+            INSERT INTO 
+                jobs 
+            VALUES (?, ?, ?, ?, ?)""", new_result)
 
 
 # function to remove multiple occurrences of one term ('new')
@@ -59,13 +54,14 @@ def scrape_secret():
     url = "https://jobs.secrettelaviv.com/"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     page = urllib.request.urlopen(req)
-    return BeautifulSoup(page, "html.parser")
+    # jobs are in spans
+    # soup = BeautifulSoup(page, 'lxml')
+    parse_only = SoupStrainer('span')
+    return BeautifulSoup(page, "lxml", parse_only=parse_only)
 
 
 def clean_jobs(soup):
-    # jobs are in 'spans'
-    all_spans = soup.find_all("span")
-    jobs = [span.get_text().strip() for span in all_spans]
+    jobs = [span.get_text().strip() for span in soup.findChildren()]
     # remove extraneous elements
     rem_list = ['',
                 'Subscribe to our EVENTS Newsletter',
