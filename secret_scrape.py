@@ -2,16 +2,13 @@
 # problem - janglo has unpredictable size, how do you differentiate jobs?
 # cronjob can be done in windows with task scheduler
 # TODO don't add duplicate records! namely, add a primary key
-# TODO lists are fubared after switch to lxml - add algorithm to remove consecutive duplicates
-# in the meantime can use this
-# SELECT DISTINCT Title, Company FROM jobs WHERE Date BETWEEN datetime('now', '-3 days') AND datetime('now', 'localtime');
-
 # -*- coding: utf-8 -*-
 import csv
 import datetime
 import urllib.request
 import sqlite3
-from bs4 import BeautifulSoup, SoupStrainer
+
+import bs4
 from dateutil import parser
 
 """
@@ -28,8 +25,10 @@ def update_db():
         excel_data = data_cleanser(result)
         export_to_excel(excel_data)
 
-        # after exporting to csv (just in case) we delete the title row and convert nested lists to tuples
+        # after exporting to csv (just in case) we delete the title row and the last row (it's not a job)
+        # and convert nested lists into tuples (necessary for the sqlite3 import)
         del excel_data[0]
+        del excel_data[200]
         new_result = [tuple(l) for l in excel_data]
         # only necessary once
         # cursor.execute('''CREATE TABLE jobs (Title, Company, Location, Type, Date Posted)''')
@@ -56,8 +55,8 @@ def scrape_secret():
     page = urllib.request.urlopen(req)
     # jobs are in spans
     # soup = BeautifulSoup(page, 'lxml')
-    parse_only = SoupStrainer('span')
-    return BeautifulSoup(page, "lxml", parse_only=parse_only)
+    parse_only = bs4.SoupStrainer('span')
+    return bs4.BeautifulSoup(page, "lxml", parse_only=parse_only)
 
 
 def clean_jobs(soup):
@@ -74,26 +73,28 @@ def clean_jobs(soup):
 
 def organise(jobs):
     # make list of lists
-    result = [["Title", "Company", "Location", "Duplicate", "Type", "Date Posted"]]
+    result = []
     new_list = []
     for job in jobs:
-        if len(new_list) == 6:
+        if len(new_list) == 7:
             a = list(new_list)
             result.append(a)
             new_list = [job]
         else:
             new_list.append(job)
     result.append(new_list)
-    return length_enforcer(result, 6)
+    return length_enforcer(result, 7)
 
 
 def data_cleanser(result):
     for i in result:
-        del i[3]
+        del i[1]
+        del i[2]
         try:
             i[4] = parser.parse(i[4])
         except ValueError:
             pass
+    result.insert(0,["Title", "Company", "Location", "Type", "Date Posted"])
     return result
 
 
