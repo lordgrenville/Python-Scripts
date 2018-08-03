@@ -18,7 +18,7 @@ Scrapes Secret Tel Aviv jobs board, adds new jobs into a database
 
 def update_db():
     """
-    Calls subfunctions for scraping, exporting to excel and RDB
+    Calls the scraping/cleaning functions, exports to CVS
     """
     with sqlite3.connect('jobs.db') as con:
         # call the scraping functions
@@ -42,36 +42,27 @@ def update_db():
             VALUES (?, ?, ?, ?, ?)""", new_result)
 
 
+# function to remove multiple occurrences of one term ('new')
 def remove_value_from_list(the_list, val):
-    """
-    removes multiple occurrences of a given term
-    """
     return [value for value in the_list if value != val]
 
 
 def length_enforcer(the_list, length):
-    """
-    remove from list of tuples those which go above a given length
-    """
     return [value for value in the_list if len(value) == length]
 
 
+# hit the website and scrape the first page
 def scrape_secret():
-    """
-    hit the website and scrape the first page
-    """
     url = "https://jobs.secrettelaviv.com/"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     page = urllib.request.urlopen(req)
     # jobs are in spans
+    # soup = BeautifulSoup(page, 'lxml')
     parse_only = bs4.SoupStrainer('span')
     return bs4.BeautifulSoup(page, "lxml", parse_only=parse_only)
 
 
 def clean_jobs(soup):
-    """
-    tidy the data - first steps
-    """
     jobs = [span.get_text().strip() for span in soup.findChildren()]
     # remove extraneous elements
     rem_list = ['',
@@ -84,9 +75,7 @@ def clean_jobs(soup):
 
 
 def organise(jobs):
-    """
-    make list of lists
-    """
+    # make list of lists
     result = []
     new_list = []
     for job in jobs:
@@ -101,9 +90,6 @@ def organise(jobs):
 
 
 def data_cleanser(result):
-    """
-    complete data cleaning, add headers
-    """
     for i in result:
         del i[1]
         del i[2]
@@ -116,9 +102,6 @@ def data_cleanser(result):
 
 
 def export_to_excel(result):
-    """
-    writes data to csv and saves as such
-    """
     csvfile = "secret_today" + datetime.datetime.today().strftime('%m-%d') + ".csv"
     with open(csvfile, "w") as output:
         writer = csv.writer(output, lineterminator='\n')
